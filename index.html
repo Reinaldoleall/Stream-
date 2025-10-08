@@ -3,498 +3,198 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebTorrent Direct Sharer</title>
-    <script src="https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js"></script>
+    <title>P2P File Transfer via QR Code</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcode@latest/build/qrcode.min.js"></script>
     <style>
-        :root {
-            --background: #111827;
-            --surface: #1f2937;
-            --primary: #3b82f6;
-            --primary-hover: #2563eb;
-            --success: #10b981;
-            --warning: #f59e0b;
-            --error: #ef4444;
-            --text: #f9fafb;
-            --text-secondary: #9ca3af;
-            --border: #4b5563;
-        }
-        
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background: var(--background);
-            color: var(--text);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            padding: 1rem;
-            line-height: 1.6;
-        }
-        
-        .container {
-            max-width: 800px;
-            width: 100%;
-            background: var(--surface);
-            padding: 2rem;
-            border-radius: 16px;
-            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3);
-        }
-        
-        .hidden {
-            display: none !important;
-        }
-        
-        h1, h2 {
-            text-align: center;
-            color: var(--text);
-            margin-bottom: 1rem;
-        }
-        
-        p {
-            color: var(--text-secondary);
-            text-align: center;
-            margin-bottom: 1.5rem;
-        }
-        
-        .btn {
-            display: block;
-            width: 100%;
-            padding: 1rem;
-            font-size: 1.1rem;
-            font-weight: bold;
-            color: white;
-            background: var(--primary);
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: background 0.2s;
-            margin-bottom: 1rem;
-        }
-        
-        .btn:hover {
-            background: var(--primary-hover);
-        }
-        
-        .btn-secondary {
-            background: #374151;
-        }
-        
-        .btn-secondary:hover {
-            background: #4b5563;
-        }
-        
-        #file-input {
-            display: none;
-        }
-        
-        .input-group {
-            display: flex;
-            gap: 0.5rem;
-            margin-top: 1rem;
-        }
-        
-        #magnet-input {
-            flex-grow: 1;
-            background: #374151;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            color: var(--text);
-            padding: 0.8rem;
-            font-family: monospace;
-        }
-        
-        #qr-canvas {
-            display: block;
-            margin: 1.5rem auto;
-            border-radius: 8px;
-            background: white;
-            padding: 10px;
-            max-width: 100%;
-        }
-        
-        .info-box {
-            margin-top: 1.5rem;
-            padding: 1rem;
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 8px;
-            text-align: center;
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-        }
-        
-        .progress-bar {
-            width: 100%;
-            height: 10px;
-            background: #374151;
-            border-radius: 5px;
-            margin: 1rem 0;
-            overflow: hidden;
-        }
-        
-        .progress-fill {
-            height: 100%;
-            background: var(--primary);
-            width: 0%;
-            transition: width 0.3s ease;
-        }
-        
-        #logs {
-            font-family: monospace;
-            white-space: pre-wrap;
-            word-break: break-all;
-            margin-top: 1rem;
-            background: #111827;
-            padding: 1rem;
-            border-radius: 8px;
-            max-height: 150px;
-            overflow-y: auto;
-            font-size: 0.85rem;
-        }
-        
-        #media-output {
-            margin-top: 1.5rem;
-            text-align: center;
-        }
-        
-        #media-output video, #media-output img, #media-output audio {
-            max-width: 100%;
-            border-radius: 8px;
-            max-height: 400px;
-        }
-        
-        .file-list {
-            margin: 1rem 0;
-            text-align: left;
-        }
-        
-        .file-item {
-            padding: 0.5rem;
-            background: rgba(0, 0, 0, 0.2);
-            margin-bottom: 0.5rem;
-            border-radius: 4px;
-            display: flex;
-            justify-content: space-between;
-        }
-        
-        .file-name {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        
-        .file-size {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-        }
-        
-        .status-indicator {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            margin-right: 5px;
-        }
-        
-        .status-connected { background: var(--success); }
-        .status-disconnected { background: var(--error); }
-        .status-connecting { background: var(--warning); }
-        
-        .notification {
-            position: fixed; top: 20px; right: 20px; padding: 1rem; background: var(--surface);
-            border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); z-index: 1000; max-width: 300px;
-            transform: translateX(150%); transition: transform 0.3s ease;
-        }
-        
-        .notification.show { transform: translateX(0); }
-        .notification.success { border-left: 4px solid var(--success); }
-        .notification.error { border-left: 4px solid var(--error); }
-        .notification.warning { border-left: 4px solid var(--warning); }
-        .notification.info { border-left: 4px solid var(--primary); }
-        
-        @media (max-width: 600px) {
-            .container { padding: 1rem; }
-            .input-group { flex-direction: column; }
-            #magnet-input { margin-bottom: 0.5rem; }
-            #qr-canvas { width: 200px; height: 200px; }
-        }
+        :root { --background: #111827; --surface: #1f2937; --primary: #3b82f6; --text: #f9fafb; --text-secondary: #9ca3af; --border: #4b5563; --success: #10b981; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--background); color: var(--text); margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 1rem; }
+        .container { max-width: 500px; width: 100%; background: var(--surface); padding: 2.5rem; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3); text-align: center; }
+        .hidden { display: none !important; }
+        h1 { margin-bottom: 1rem; }
+        p { color: var(--text-secondary); margin-bottom: 2rem; line-height: 1.6; }
+        .btn { display: inline-block; width: 100%; padding: 1rem; font-size: 1.1rem; font-weight: bold; color: white; background: var(--primary); border: none; border-radius: 8px; cursor: pointer; transition: background 0.2s; }
+        #file-input { display: none; }
+        #qr-canvas { display: block; margin: 2rem auto; border-radius: 8px; background: white; padding: 1rem; }
+        .status-box { margin-top: 1.5rem; padding: 1rem; background: rgba(0,0,0,0.2); border-radius: 8px; }
+        .progress-bar { width: 100%; height: 12px; background: #374151; border-radius: 6px; margin-top: 1rem; overflow: hidden; }
+        .progress-fill { height: 100%; background: var(--success); width: 0%; transition: width 0.3s ease; }
     </style>
 </head>
 <body>
     <div class="container">
-        <div id="initial-view">
-            <h1>WebTorrent Direct Sharer</h1>
-            <p>Compartilhe arquivos diretamente entre navegadores na mesma rede. Para começar, selecione os arquivos ou cole um Link Magnético para reproduzir.</p>
-            
-            <button class="btn" id="select-files-btn">
-                <span class="btn-icon">📁</span> Selecionar Arquivos para Compartilhar
-            </button>
-            <input type="file" id="file-input" multiple>
-            
-            <div class="input-group">
-                <input type="text" id="magnet-input" placeholder="Cole um Link Magnético aqui...">
-                <button class="btn" style="width: auto; font-size: 1rem;" id="load-magnet-btn">
-                    <span class="btn-icon">🔍</span> Carregar
-                </button>
-            </div>
-            
-            <div id="recent-torrents-container" class="hidden">
-                <h3>Torrents Recentes</h3>
-                <div id="recent-list"></div>
-            </div>
-        </div>
-
-        <div id="seeding-view" class="hidden">
-            <h2>Compartilhando Arquivos!</h2>
-            <p>Abra esta mesma página em outro dispositivo e use o QR Code ou o link abaixo para começar a assistir.</p>
-            
-            <div class="file-list" id="seeding-file-list"></div>
+        <div id="receiver-view">
+            <h1>Receber Arquivo</h1>
+            <p>Escaneie o QR Code abaixo com o dispositivo que irá enviar o arquivo.</p>
             <canvas id="qr-canvas"></canvas>
-            <div class="info-box" id="seeding-info">
-                <span class="status-indicator status-connecting"></span>
-                Preparando para compartilhar...
-            </div>
-            <div class="progress-bar"><div class="progress-fill" id="seeding-progress"></div></div>
-            <div id="logs"></div>
-            <button class="btn btn-secondary" id="stop-seeding-btn">
-                <span class="btn-icon">⏹️</span> Parar Compartilhamento
-            </button>
+            <div id="receiver-status" class="status-box">Aguardando conexão...</div>
         </div>
 
-        <div id="streaming-view" class="hidden">
-            <h2>Reproduzindo Mídia</h2>
-            
-            <div class="file-list" id="streaming-file-list"></div>
-            <div class="info-box" id="streaming-info">
-                <span class="status-indicator status-connecting"></span>
-                Conectando aos pares...
-            </div>
-            <div class="progress-bar"><div class="progress-fill" id="streaming-progress"></div></div>
-            <div id="media-output"></div>
-            <button class="btn btn-secondary" id="stop-streaming-btn">
-                <span class="btn-icon">⏹️</span> Parar Reprodução
-            </button>
+        <div id="sender-view" class="hidden">
+            <h1>Enviar Arquivo</h1>
+            <p>Conectado! Selecione o arquivo que deseja enviar.</p>
+            <button class="btn" onclick="document.getElementById('file-input').click()">Selecionar Arquivo</button>
+            <input type="file" id="file-input">
+            <div id="sender-status" class="status-box">Pronto para enviar.</div>
+            <div id="sender-progress-bar" class="progress-bar hidden"><div class="progress-fill"></div></div>
         </div>
     </div>
-    
-    <div id="notification" class="notification"></div>
 
     <script>
-        const initialView = document.getElementById('initial-view');
-        const seedingView = document.getElementById('seeding-view');
-        const streamingView = document.getElementById('streaming-view');
+        const receiverView = document.getElementById('receiver-view');
+        const senderView = document.getElementById('sender-view');
+        const receiverStatus = document.getElementById('receiver-status');
+        const senderStatus = document.getElementById('sender-status');
         const fileInput = document.getElementById('file-input');
-        const selectFilesBtn = document.getElementById('select-files-btn');
-        const magnetInput = document.getElementById('magnet-input');
-        const loadMagnetBtn = document.getElementById('load-magnet-btn');
-        const stopSeedingBtn = document.getElementById('stop-seeding-btn');
-        const stopStreamingBtn = document.getElementById('stop-streaming-btn');
-        const logs = document.getElementById('logs');
-        const seedingInfo = document.getElementById('seeding-info');
-        const streamingInfo = document.getElementById('streaming-info');
-        const seedingProgress = document.getElementById('seeding-progress');
-        const streamingProgress = document.getElementById('streaming-progress');
-        const seedingFileList = document.getElementById('seeding-file-list');
-        const streamingFileList = document.getElementById('streaming-file-list');
-        const mediaOutput = document.getElementById('media-output');
-        const notification = document.getElementById('notification');
-        const recentTorrentsContainer = document.getElementById('recent-torrents-container');
-        const recentList = document.getElementById('recent-list');
+        const senderProgressBar = document.getElementById('sender-progress-bar');
         
-        const client = new WebTorrent();
-        let currentTorrent = null;
-        
-        function showNotification(message, type = 'info', duration = 5000) {
-            notification.textContent = message;
-            notification.className = `notification ${type} show`;
-            setTimeout(() => { notification.classList.remove('show'); }, duration);
-        }
-        
-        function log(message) {
-            const timestamp = new Date().toLocaleTimeString();
-            logs.textContent += `[${timestamp}] ${message}\n`;
-            logs.scrollTop = logs.scrollHeight;
-        }
-        
-        function formatFileSize(bytes) {
-            if (bytes === 0) return '0 Bytes';
-            const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-        }
-        
-        function createFileList(files, container) {
-            container.innerHTML = '';
-            files.forEach(file => {
-                const fileItem = document.createElement('div');
-                fileItem.className = 'file-item';
-                const fileName = document.createElement('div');
-                fileName.className = 'file-name';
-                fileName.textContent = file.name;
-                const fileSize = document.createElement('div');
-                fileSize.className = 'file-size';
-                fileSize.textContent = formatFileSize(file.length);
-                fileItem.appendChild(fileName);
-                fileItem.appendChild(fileSize);
-                container.appendChild(fileItem);
-            });
-        }
-        
-        function saveRecentTorrent(magnetURI, name) {
-            let recentTorrents = JSON.parse(localStorage.getItem('recentTorrents') || '[]');
-            recentTorrents = recentTorrents.filter(t => t.magnetURI !== magnetURI);
-            recentTorrents.unshift({ magnetURI, name, timestamp: Date.now() });
-            if (recentTorrents.length > 5) {
-                recentTorrents = recentTorrents.slice(0, 5);
+        let peer = null;
+        let connection = null;
+        const CHUNK_SIZE = 16384; // 16KB
+
+        function initialize() {
+            const params = new URLSearchParams(window.location.search);
+            const receiverId = params.get('connect_to');
+
+            if (receiverId) {
+                // Modo Transmissor
+                initializeSender(receiverId);
+            } else {
+                // Modo Receptor
+                initializeReceiver();
             }
-            localStorage.setItem('recentTorrents', JSON.stringify(recentTorrents));
-            updateRecentTorrentsList();
-        }
-        
-        function updateRecentTorrentsList() {
-            const torrents = JSON.parse(localStorage.getItem('recentTorrents') || '[]');
-            if (torrents.length === 0) {
-                recentTorrentsContainer.classList.add('hidden');
-                return;
-            }
-            recentTorrentsContainer.classList.remove('hidden');
-            recentList.innerHTML = '';
-            torrents.forEach(torrent => {
-                const item = document.createElement('div');
-                item.className = 'file-item';
-                item.style.cursor = 'pointer';
-                item.innerHTML = `<div class="file-name">${torrent.name}</div><div class="file-size">${new Date(torrent.timestamp).toLocaleDateString()}</div>`;
-                item.addEventListener('click', () => {
-                    magnetInput.value = torrent.magnetURI;
-                    loadMagnet(torrent.magnetURI);
-                });
-                recentList.appendChild(item);
-            });
-        }
-        
-        selectFilesBtn.addEventListener('click', () => fileInput.click());
-        
-        fileInput.addEventListener('change', () => {
-            if (fileInput.files.length === 0) return;
-            initialView.classList.add('hidden');
-            seedingView.classList.remove('hidden');
-            log('Iniciando o compartilhamento (seeding)...');
-            if (currentTorrent) { client.remove(currentTorrent.magnetURI); currentTorrent = null; }
-            
-            client.seed(fileInput.files, (torrent) => {
-                currentTorrent = torrent;
-                log(`Arquivo(s) pronto(s) para compartilhar.`);
-                log(`Link Magnético: ${torrent.magnetURI}`);
-                createFileList(torrent.files, seedingFileList);
-                
-                const shareableLink = window.location.href.split('#')[0] + '#' + torrent.magnetURI;
-                seedingInfo.innerHTML = `<span class="status-indicator status-connected"></span> Link gerado! <a href="${shareableLink}" target="_blank" style="color: var(--primary);">Abrir em nova aba</a>`;
-                
-                QRCode.toCanvas(document.getElementById('qr-canvas'), shareableLink, { width: 256 }, (error) => {
-                    if (error) log('Erro ao gerar QR Code: ' + error.message);
-                    else log('QR Code gerado com sucesso.');
-                });
-                
-                torrent.on('upload', () => {
-                    seedingInfo.innerHTML = `<span class="status-indicator status-connected"></span> Conectado a ${torrent.numPeers} par(es).<br>Velocidade de Upload: ${(torrent.uploadSpeed / 1024 / 1024).toFixed(2)} MB/s<br>Total enviado: ${formatFileSize(torrent.uploaded)}`;
-                });
-                
-                torrent.on('wire', (wire, addr) => log(`Nova conexão estabelecida com: ${addr}`));
-                
-                saveRecentTorrent(torrent.magnetURI, fileInput.files[0].name + (fileInput.files.length > 1 ? ` e outros ${fileInput.files.length-1}`: ''));
-                showNotification('Compartilhamento iniciado com sucesso!', 'success');
-            });
-        });
-        
-        function loadMagnet(magnetURI) {
-            if (!magnetURI || !magnetURI.startsWith('magnet:')) {
-                showNotification('Por favor, insira um link magnético válido.', 'error');
-                return;
-            }
-            if (currentTorrent) { client.remove(currentTorrent.magnetURI); currentTorrent = null; }
-            initialView.classList.add('hidden');
-            streamingView.classList.remove('hidden');
-            log(`Carregando mídia do link...`);
-            
-            client.add(magnetURI, (torrent) => {
-                currentTorrent = torrent;
-                log('Metadados recebidos. Iniciando download...');
-                createFileList(torrent.files, streamingFileList);
-                
-                const mediaFile = torrent.files.find(f => /\.(mp4|webm|mkv|mp3|wav|ogg|jpg|jpeg|png|gif)$/i.test(f.name));
-                mediaOutput.innerHTML = '';
-                
-                if (mediaFile) {
-                    log(`Reproduzindo arquivo: ${mediaFile.name}`);
-                    mediaFile.renderTo(mediaOutput, { autoplay: true, controls: true }, (err, elem) => {
-                        if (err) log('Erro ao renderizar arquivo: ' + err.message);
-                        else log('Arquivo de mídia renderizado com sucesso.');
-                    });
-                } else {
-                    log('Nenhum arquivo de mídia suportado encontrado.');
-                    showNotification('Nenhum arquivo de mídia suportado encontrado.', 'warning');
-                }
-                
-                torrent.on('download', () => {
-                    streamingProgress.style.width = `${torrent.progress * 100}%`;
-                    streamingInfo.innerHTML = `<span class="status-indicator ${torrent.numPeers > 0 ? 'status-connected' : 'status-connecting'}"></span> Conectado a ${torrent.numPeers} par(es).<br>Velocidade: ${(torrent.downloadSpeed / 1024 / 1024).toFixed(2)} MB/s<br>Progresso: ${Math.round(torrent.progress * 100)}%`;
-                });
-                
-                torrent.on('done', () => {
-                    log('Download completo!');
-                    streamingInfo.innerHTML = `<span class="status-indicator status-connected"></span> Download completo!`;
-                    showNotification('Download concluído!', 'success');
-                });
-                saveRecentTorrent(torrent.magnetURI, torrent.name || 'Torrent Carregado');
-            });
-        }
-        
-        loadMagnetBtn.addEventListener('click', () => loadMagnet(magnetInput.value));
-        
-        function stopAndReset(viewToHide) {
-             if (currentTorrent) {
-                client.remove(currentTorrent.magnetURI, () => { currentTorrent = null; });
-            }
-            viewToHide.classList.add('hidden');
-            initialView.classList.remove('hidden');
-            fileInput.value = '';
-            magnetInput.value = '';
-            logs.textContent = '';
         }
 
-        stopSeedingBtn.addEventListener('click', () => {
-            stopAndReset(seedingView);
-            showNotification('Compartilhamento interrompido.', 'info');
-        });
+        // --- LÓGICA DO RECEPTOR ---
+        function initializeReceiver() {
+            receiverView.classList.remove('hidden');
+            senderView.classList.add('hidden');
+            
+            peer = new Peer(); // Pede uma ID ao servidor de sinalização
+
+            peer.on('open', (id) => {
+                const baseUrl = window.location.href.split('?')[0];
+                const connectUrl = `${baseUrl}?connect_to=${id}`;
+                
+                receiverStatus.textContent = `Sua ID de conexão é: ${id}`;
+                QRCode.toCanvas(document.getElementById('qr-canvas'), connectUrl, { width: 256 });
+            });
+
+            peer.on('connection', (conn) => {
+                connection = conn;
+                receiverStatus.textContent = `Dispositivo conectado! Aguardando arquivo...`;
+
+                let receivedFileBuffer = [];
+                let fileMetadata = {};
+
+                conn.on('data', (data) => {
+                    if (data.type === 'metadata') {
+                        fileMetadata = data.payload;
+                        receivedFileBuffer = [];
+                        receiverStatus.textContent = `Recebendo arquivo: ${fileMetadata.name} (${(fileMetadata.size / 1024 / 1024).toFixed(2)} MB)`;
+                    } else if (data.type === 'chunk') {
+                        receivedFileBuffer.push(data.payload);
+                        const progress = (receivedFileBuffer.length * CHUNK_SIZE / fileMetadata.size) * 100;
+                        receiverStatus.textContent = `Recebendo... ${Math.round(progress)}%`;
+                    } else if (data.type === 'done') {
+                        const receivedBlob = new Blob(receivedFileBuffer, { type: fileMetadata.type });
+                        triggerDownload(receivedBlob, fileMetadata.name);
+                        receiverStatus.textContent = `Arquivo "${fileMetadata.name}" recebido com sucesso!`;
+                        conn.close();
+                    }
+                });
+            });
+
+             peer.on('error', (err) => {
+                console.error(err);
+                receiverStatus.textContent = `Erro: ${err.type}. Tente recarregar a página.`;
+            });
+        }
         
-        stopStreamingBtn.addEventListener('click', () => {
-            stopAndReset(streamingView);
-            showNotification('Reprodução interrompida.', 'info');
-        });
+        // --- LÓGICA DO TRANSMISSOR ---
+        function initializeSender(receiverId) {
+            senderView.classList.remove('hidden');
+            receiverView.classList.add('hidden');
+            
+            peer = new Peer();
+
+            peer.on('open', () => {
+                senderStatus.textContent = `Conectando ao dispositivo receptor...`;
+                connection = peer.connect(receiverId);
+
+                connection.on('open', () => {
+                    senderStatus.textContent = `Conectado! Selecione um arquivo para enviar.`;
+                    fileInput.addEventListener('change', handleFileSelect);
+                });
+                 connection.on('error', (err) => {
+                    console.error(err);
+                    senderStatus.textContent = `Erro na conexão. Verifique se o receptor está ativo.`;
+                });
+            });
+
+            peer.on('error', (err) => {
+                console.error(err);
+                senderStatus.textContent = `Erro: ${err.type}. Verifique sua conexão e tente novamente.`;
+            });
+        }
         
-        window.addEventListener('load', () => {
-            updateRecentTorrentsList();
-            if (window.location.hash) {
-                const magnetFromHash = window.location.hash.substring(1);
-                if (magnetFromHash.startsWith('magnet:')) {
-                    magnetInput.value = magnetFromHash;
-                    loadMagnet(magnetFromHash);
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file || !connection) return;
+
+            senderStatus.textContent = `Enviando: ${file.name}`;
+            senderProgressBar.classList.remove('hidden');
+            const progressBarFill = senderProgressBar.querySelector('.progress-fill');
+            
+            // 1. Enviar metadados primeiro
+            connection.send({
+                type: 'metadata',
+                payload: { name: file.name, type: file.type, size: file.size }
+            });
+
+            // 2. Enviar arquivo em pedaços (chunks)
+            const fileReader = new FileReader();
+            let offset = 0;
+
+            fileReader.addEventListener('load', e => {
+                connection.send({ type: 'chunk', payload: e.target.result });
+                offset += e.target.result.byteLength;
+                
+                const progress = (offset / file.size) * 100;
+                progressBarFill.style.width = `${progress}%`;
+
+                if (offset < file.size) {
+                    readSlice(offset);
+                } else {
+                    // 3. Enviar sinal de conclusão
+                    connection.send({ type: 'done' });
+                    senderStatus.textContent = `Arquivo "${file.name}" enviado com sucesso!`;
+                    setTimeout(() => connection.close(), 1000);
                 }
+            });
+
+            function readSlice(o) {
+                const slice = file.slice(o, o + CHUNK_SIZE);
+                fileReader.readAsArrayBuffer(slice);
             }
-        });
-        
-        magnetInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                loadMagnet(magnetInput.value);
-            }
-        });
+            
+            readSlice(0); // Inicia o processo de leitura
+        }
+
+        function triggerDownload(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Inicia a aplicação
+        initialize();
     </script>
 </body>
 </html>
+
